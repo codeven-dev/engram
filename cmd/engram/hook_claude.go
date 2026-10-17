@@ -61,6 +61,10 @@ var claudeHookOutput = func(response []byte) error {
 }
 
 func cmdHook(args []string) {
+	if len(args) == 1 && args[0] == "antigravity-session-start" {
+		cmdAntigravitySessionStart()
+		return
+	}
 	if len(args) == 1 && (args[0] == "codex-register" || args[0] == "codex-resolve" || args[0] == "codex-session-end") {
 		cmdCodexLifecycle(args[0])
 		return

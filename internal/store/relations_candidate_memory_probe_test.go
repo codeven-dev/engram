@@ -119,6 +119,11 @@ func runCandidateCounterProbe(t *testing.T, mode string) {
 
 // Call only in a fresh test process before any SQLite connection is opened.
 func configureCandidateSQLiteMemstatus(tls *libc.TLS, enabled bool) int32 {
+	// Auto-extensions initialize SQLite during package init. These callers run
+	// only in isolated counter probes, before opening any database connection.
+	if rc := sqlitelib.Xsqlite3_shutdown(tls); rc != 0 {
+		return rc
+	}
 	// The generated va adapter reads one promoted C int from an eight-byte slot.
 	args := new([2]int32)
 	if enabled {

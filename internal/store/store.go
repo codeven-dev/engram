@@ -860,6 +860,7 @@ type Config struct {
 	MaxContextResults    int
 	MaxSearchResults     int
 	DedupeWindow         time.Duration
+	Semantic             *SemanticConfig
 }
 
 func DefaultConfig() (Config, error) {
@@ -873,6 +874,7 @@ func DefaultConfig() (Config, error) {
 		MaxContextResults:    20,
 		MaxSearchResults:     20,
 		DedupeWindow:         15 * time.Minute,
+		Semantic:             semanticConfigFromEnv(),
 	}, nil
 }
 
@@ -886,6 +888,7 @@ func FallbackConfig(dataDir string) Config {
 		MaxContextResults:    20,
 		MaxSearchResults:     20,
 		DedupeWindow:         15 * time.Minute,
+		Semantic:             semanticConfigFromEnv(),
 	}
 }
 
@@ -902,6 +905,7 @@ func (s *Store) DataDir() string {
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 type Store struct {
+	semantic                *semanticIndex
 	contextHistoryNow       func() time.Time // Optional per-store clock for deterministic calendar tests.
 	contextHistoryAfterRead func(string)     // Optional per-store barrier for snapshot regression tests.
 	compatibilityClosed     atomic.Bool
@@ -1173,10 +1177,12 @@ func newStoreWithStartupContext(ctx context.Context, cfg Config, ownedStartup bo
 		return nil, err
 	}
 	succeeded = true
+	s.startSemanticIndex()
 	return s, nil
 }
 
 func (s *Store) Close() error {
+	s.stopSemanticIndex()
 	s.compatibilityClosed.Store(true)
 	return s.db.Close()
 }
@@ -5714,9 +5720,9 @@ func (s *Store) Search(query string, opts SearchOptions) ([]SearchResult, error)
 	return s.SearchContext(context.Background(), query, opts)
 }
 
-// SearchContext searches observations while honoring cancellation from the
-// caller, including while materializing rows.
-func (s *Store) SearchContext(ctx context.Context, query string, opts SearchOptions) ([]SearchResult, error) {
+// searchLexicalContext retains the original lexical ranking and cancellation
+// behavior underneath optional semantic retrieval.
+func (s *Store) searchLexicalContext(ctx context.Context, query string, opts SearchOptions) ([]SearchResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -5866,9 +5872,9 @@ func (s *Store) SearchContext(ctx context.Context, query string, opts SearchOpti
 	return results, nil
 }
 
-// SearchPreviewsContext searches using the same ranking and filters as
-// SearchContext while selecting only a bounded Unicode-safe content preview.
-func (s *Store) SearchPreviewsContext(ctx context.Context, query string, opts SearchOptions) ([]SearchPreviewResult, error) {
+// searchLexicalPreviewsContext retains the lexical ranking and filters while
+// selecting only a bounded Unicode-safe content preview.
+func (s *Store) searchLexicalPreviewsContext(ctx context.Context, query string, opts SearchOptions) ([]SearchPreviewResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

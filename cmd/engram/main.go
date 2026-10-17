@@ -822,6 +822,10 @@ func main() {
 		cmdTUI(cfg)
 	case "search":
 		cmdSearch(cfg)
+	case "embeddings":
+		if err := cmdEmbeddings(cfg); err != nil {
+			fatal(err)
+		}
 	case "save":
 		cmdSave(cfg)
 	case "delete":
@@ -871,7 +875,7 @@ func shouldCheckForUpdates(args []string) bool {
 	}
 	command := strings.ToLower(strings.TrimSpace(args[0]))
 	switch command {
-	case "mcp", "serve", "protocol-mode", "tui", "doctor", "version", "--version", "-v", "help", "--help", "-h", "init", "hook":
+	case "mcp", "serve", "protocol-mode", "tui", "doctor", "version", "--version", "-v", "help", "--help", "-h", "init", "hook", "embeddings":
 		return false
 	case "cloud":
 		return len(args) < 2 || strings.ToLower(strings.TrimSpace(args[1])) != "serve"
@@ -3899,6 +3903,8 @@ Commands:
                      Read-only offline store observation (JSON). It never opens, migrates or repairs
                      the store, and never authorizes automatic opening; see README
   search <query>     Search memories [--type TYPE] [--project PROJECT|--all] [--scope SCOPE] [--limit N] [--match all|any]
+  embeddings status Inspect optional local embedding index coverage (JSON)
+  embeddings index  Process pending local embeddings (up to five minutes)
   save <title> <msg> Save a memory  [--type TYPE] [--project PROJECT] [--scope SCOPE]
   delete <obs_id>    Delete an observation [--hard] (soft-delete by default; --hard removes permanently)
   delete session <id>
@@ -3969,6 +3975,12 @@ Commands:
   help               Show this help
 
 Environment:
+  ENGRAM_EMBED_MODEL Optional local Ollama model; unset keeps lexical-only retrieval
+  ENGRAM_EMBED_URL   Loopback Ollama URL (default: http://127.0.0.1:11434)
+  ENGRAM_EMBED_DIMENSIONS
+                     Vector dimensions (default: 768)
+  ENGRAM_EMBED_MIN_SIMILARITY
+                     Minimum cosine similarity (default: 0.35, experimental)
   ENGRAM_DATA_DIR    Engram CLI data directory. Empty or whitespace-only values use the
                      platform default; nonblank values are used as provided (default: ~/.engram)
   ENGRAM_PORT        Override HTTP server port (default: 7437)

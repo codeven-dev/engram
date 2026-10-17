@@ -1,0 +1,11 @@
+{
+  "engram": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "engram hook antigravity-session-start",
+        "timeout": 3
+      }
+    ]
+  }
+}

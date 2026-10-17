@@ -1,6 +1,12 @@
 <!-- markdownlint-disable-next-line MD041 -->
 <a id="top"></a>
 
+> **Codeven experimental fork:** optional local multilingual retrieval combines
+> SQLite FTS and sqlite-vec behind the existing tools. See
+> [behavior and validation](docs/LOCAL-SEMANTIC-SEARCH.md) and the
+> [manual Codex / Claude / Antigravity setup](docs/runbooks/manual-local-memory.md).
+> Ollama is optional; lexical search and durable saves remain available without it.
+
 <div align="center">
 
 <img width="100%" alt="Engram neon elephant banner: the elephant exhales a memory stream (remember, sync, recall), the ENGRAM wordmark is written on, and the tagline One Brain. Local or Cloud. appears" src="assets/branding/engram-banner.gif" />

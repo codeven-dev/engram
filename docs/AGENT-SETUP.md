@@ -2,6 +2,10 @@
 
 # Agent Setup
 
+For this fork's local embeddings and manual Codex Qbit / Claude / Antigravity
+configuration, use the [manual local memory guide](runbooks/manual-local-memory.md).
+The upstream automated setup paths below retain their original behavior.
+
 Engram works with **any MCP-compatible agent**. Pick your agent below.
 
 > Cloud bootstrap automation in agent scripts/plugins is intentionally deferred in this rollout. Use `engram cloud ...` manually for now.

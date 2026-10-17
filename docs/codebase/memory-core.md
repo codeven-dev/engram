@@ -4,6 +4,10 @@
 
 **The memory core is `internal/store`: local SQLite + FTS5 is Engram's source of truth.** Interfaces should translate user/agent intent into store operations instead of reimplementing persistence rules.
 
+This fork adds opt-in local semantic candidates in `internal/store/semantic.go`.
+See [local semantic retrieval](../LOCAL-SEMANTIC-SEARCH.md) for the derived index,
+invalidation guarantees, fallback behavior and validation boundaries.
+
 ## Save and retrieve flow
 
 The memory flow does not start in the database. It starts with the agent deciding something is worth remembering.
