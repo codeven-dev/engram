@@ -545,7 +545,7 @@ user_prompt_submit_without_jq() {
     esac
     if [ -z "$last_nudge_epoch" ] || [ "$(( now_epoch - last_nudge_epoch ))" -ge "$nudge_cooldown" ]; then
       printf '%s\n' "$now_epoch" > "$nudge_state_file" 2>/dev/null || true
-      printf '%s\n' '{"systemMessage":"MEMORY REMINDER: It'\''s been at least 15 minutes since your last save. If you'\''ve made decisions, discoveries, or completed significant work, call mem_save now."}'
+      printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"MEMORY REMINDER: It'\''s been at least 15 minutes since your last save. If you'\''ve made decisions, discoveries, or completed significant work, call mem_save now."}}'
       return 0
     fi
   fi

@@ -120,8 +120,18 @@ func TestCodexUnixUserPromptSubmitValidatesObservationsAndFirstSaveThreshold(t *
 				return string(output)
 			}
 
-			runHook()
+			assertModelContext := func(output string) {
+				t.Helper()
+				payload := decodeHookPayload(t, output)
+				if payload.SystemMessage != "" || payload.HookSpecificOutput.HookEventName != "UserPromptSubmit" || payload.HookSpecificOutput.AdditionalContext == "" {
+					t.Fatalf("instructions must reach model context, got %s", output)
+				}
+			}
+			assertModelContext(runHook())
 			output := runHook()
+			if tt.wantNudge {
+				assertModelContext(output)
+			}
 			if gotNudge := strings.Contains(output, "MEMORY REMINDER"); gotNudge != tt.wantNudge {
 				t.Fatalf("second hook invocation nudge = %t, want %t; output: %q", gotNudge, tt.wantNudge, output)
 			}

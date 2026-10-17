@@ -560,11 +560,28 @@ func TestCodexUserPromptSubsequentMessageSharesDeadlineAndPersistsOnce(t *testin
 	defer server.Close()
 	stateDir := t.TempDir()
 	input := []byte(`{"cwd":"C:/work","session_id":"s-1","prompt":"persist once"}`)
-	if got := string(runCodexUserPromptSubmit(input, server.URL, stateDir, func() time.Time { return now })); !strings.Contains(got, "CRITICAL FIRST ACTION") {
-		t.Fatalf("first output = %q, want ToolSearch", got)
+	assertModelContext := func(output []byte) {
+		t.Helper()
+		var payload struct {
+			SystemMessage      string `json:"systemMessage"`
+			HookSpecificOutput struct {
+				Event   string `json:"hookEventName"`
+				Context string `json:"additionalContext"`
+			} `json:"hookSpecificOutput"`
+		}
+		if json.Unmarshal(output, &payload) != nil || payload.SystemMessage != "" || payload.HookSpecificOutput.Event != "UserPromptSubmit" || payload.HookSpecificOutput.Context == "" {
+			t.Fatalf("prompt instructions must reach model context, got %s", output)
+		}
 	}
-	if got := string(runCodexUserPromptSubmit(input, server.URL, stateDir, func() time.Time { return now })); !strings.Contains(got, "MEMORY REMINDER") {
-		t.Fatalf("subsequent output = %q, want reminder", got)
+	first := runCodexUserPromptSubmit(input, server.URL, stateDir, func() time.Time { return now })
+	assertModelContext(first)
+	if !strings.Contains(string(first), "CRITICAL FIRST ACTION") {
+		t.Fatalf("first output = %q, want ToolSearch", first)
+	}
+	second := runCodexUserPromptSubmit(input, server.URL, stateDir, func() time.Time { return now })
+	assertModelContext(second)
+	if !strings.Contains(string(second), "MEMORY REMINDER") {
+		t.Fatalf("subsequent output = %q, want reminder", second)
 	}
 	if got := promptPosts.Load(); got != 2 {
 		t.Fatalf("prompt posts = %d, want one dispatch per call without retry", got)

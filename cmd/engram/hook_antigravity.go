@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -72,4 +73,58 @@ func antigravitySessionStart(input []byte, base string) []byte {
 func antigravityMessage(text string) []byte {
 	output, _ := json.Marshal(map[string]any{"injectSteps": []any{map[string]any{"systemMessage": map[string]string{"systemMessage": text}}}})
 	return output
+}
+
+// PreInvocation also runs during tool loops. Only an overdue save emits context;
+// all lookups share a deadline and failure leaves the agent free to continue.
+func cmdAntigravityPreInvocation() {
+	response := []byte("{}")
+	input, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
+	if err == nil {
+		response = antigravityPreInvocation(input, codexHookURL(), os.TempDir(), time.Now())
+	}
+	_, _ = os.Stdout.Write(response)
+}
+
+func antigravityPreInvocation(input []byte, base, stateDir string, now time.Time) []byte {
+	var in struct {
+		ConversationID string   `json:"conversationId"`
+		Workspaces     []string `json:"workspacePaths"`
+	}
+	if json.Unmarshal(input, &in) != nil || strings.TrimSpace(in.ConversationID) == "" || len(in.Workspaces) != 1 || !filepath.IsAbs(in.Workspaces[0]) || base == "" {
+		return []byte("{}")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer cancel()
+	_, client := hookEndpointClient(base)
+	var authority json.RawMessage
+	if !codexJSON(ctx, client, http.MethodGet, base+"/project/current?cwd="+url.QueryEscape(in.Workspaces[0]), nil, &authority) {
+		return []byte("{}")
+	}
+	project, ok := codexProjectAuthority(authority)
+	if !ok {
+		return []byte("{}")
+	}
+	effective := codexRuntimeAt(ctx, client, base, in.ConversationID, in.Workspaces[0], project, "resolve")
+	if effective == "" {
+		return []byte("{}")
+	}
+	age, knownAge := codexSessionAge(ctx, client, base, effective, now)
+	if !knownAge || age < 5*time.Minute {
+		return []byte("{}")
+	}
+	last, hasLast, valid := codexLastSave(ctx, client, base, project)
+	if !valid {
+		return []byte("{}")
+	}
+	elapsed := age
+	if hasLast {
+		elapsed = now.Sub(last)
+	}
+	key, _ := json.Marshal([]string{project, effective})
+	state := filepath.Join(stateDir, fmt.Sprintf("engram-antigravity-%x-last-nudge", sha256.Sum256(key)))
+	if elapsed < 15*time.Minute || !codexNudgeAllowed(state, now) {
+		return []byte("{}")
+	}
+	return antigravityMessage("MEMORY REMINDER: It's been at least 15 minutes since your last save. If you've made decisions, discoveries, or completed significant work, call mem_save now.")
 }

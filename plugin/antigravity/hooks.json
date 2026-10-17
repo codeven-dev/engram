@@ -1,5 +1,12 @@
 {
   "engram": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "engram hook antigravity-pre-invocation",
+        "timeout": 3
+      }
+    ],
     "SessionStart": [
       {
         "type": "command",

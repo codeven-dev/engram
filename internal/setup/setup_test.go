@@ -3634,6 +3634,51 @@ func TestClaudeCodeUserPromptHookUsesCollisionResistantWindowsSafeSessionKey(t *
 	}
 }
 
+func TestClaudeCodeReminderWithoutJQReachesModel(t *testing.T) {
+	bashPath, pathDirs := isolatedHookPath(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/project/current":
+			fmt.Fprint(w, `{"project":"payments","project_source":"config"}`)
+		case "/sessions/reminder-test":
+			fmt.Fprintf(w, `{"started_at":%q}`, time.Now().Add(-time.Hour).UTC().Format(time.RFC3339))
+		case "/observations":
+			fmt.Fprint(w, `[]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	root := filepath.Join("..", "..")
+	state := t.TempDir()
+	run := func() string {
+		t.Helper()
+		cmd := exec.Command(bashPath, filepath.Join(root, "plugin", "claude-code", "scripts", "user-prompt-submit.sh"))
+		cmd.Env = append(os.Environ(), "PATH="+strings.Join(pathDirs, string(os.PathListSeparator)), "TMPDIR="+state, "ENGRAM_URL="+server.URL, "ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0")
+		cmd.Stdin = strings.NewReader(fmt.Sprintf(`{"session_id":"reminder-test","cwd":%q}`, t.TempDir()))
+		output, err := cmd.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(output)
+	}
+	run()
+	output := run()
+	var payload struct {
+		SystemMessage      string `json:"systemMessage"`
+		HookSpecificOutput struct {
+			Event   string `json:"hookEventName"`
+			Context string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	if json.Unmarshal([]byte(output), &payload) != nil || payload.SystemMessage != "" || payload.HookSpecificOutput.Event != "UserPromptSubmit" || !strings.Contains(payload.HookSpecificOutput.Context, "MEMORY REMINDER") {
+		t.Fatalf("reminder must reach model context, got %s", output)
+	}
+	if output := strings.TrimSpace(run()); output != "{}" {
+		t.Fatalf("cooldown returned %s", output)
+	}
+}
+
 // TestClaudeCodeUserPromptHookWithoutJQPreservesSessionStateAndNudge verifies
 // server-owned capture decisions without changing bootstrap or reminder state.
 func TestClaudeCodeUserPromptHookWithoutJQPreservesSessionStateAndNudge(t *testing.T) {

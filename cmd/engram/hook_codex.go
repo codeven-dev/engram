@@ -404,7 +404,7 @@ func codexLastSave(ctx context.Context, c *http.Client, baseURL, project string)
 		CreatedAt string `json:"created_at"`
 	}
 	path := baseURL + "/observations?project=" + url.QueryEscape(project) + "&limit=1&sort=created_at:desc"
-	if !codexJSON(ctx, c, http.MethodGet, path, nil, &response) {
+	if !codexJSON(ctx, c, http.MethodGet, path, nil, &response) || response == nil {
 		return time.Time{}, false, false
 	}
 	if len(response) == 0 {
@@ -457,6 +457,6 @@ func codexNudgeAllowed(path string, now time.Time) bool {
 	return os.WriteFile(path, []byte(strconv.FormatInt(now.Unix(), 10)), 0o600) == nil
 }
 func codexMessage(message string) []byte {
-	output, _ := json.Marshal(map[string]string{"systemMessage": message})
+	output, _ := json.Marshal(map[string]any{"hookSpecificOutput": map[string]string{"hookEventName": "UserPromptSubmit", "additionalContext": message}})
 	return output
 }

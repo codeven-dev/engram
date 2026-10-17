@@ -168,6 +168,8 @@ does not ship an Antigravity lifecycle hook adapter. This fork adds a native
 `SessionStart` adapter with camelCase input and `injectSteps` output. It registers
 the server-confirmed runtime identity and injects a short memory protocol plus
 bounded project history. It does not reuse Claude/Codex hook envelopes.
+Its `PreInvocation` adapter checks for an overdue memory save before model calls,
+including continuations within a tool loop.
 
 Generate configuration fragments with absolute paths, without editing your
 existing agent settings:
@@ -181,9 +183,13 @@ keys = ['ENGRAM_DATA_DIR', 'ENGRAM_EMBED_MODEL', 'ENGRAM_EMBED_URL',
         'ENGRAM_EMBED_DIMENSIONS', 'ENGRAM_EMBED_MIN_SIMILARITY']
 entry = {'command': os.environ['ENGRAM_BIN'], 'args': ['mcp', '--tools=agent'],
          'env': {key: os.environ[key] for key in keys}}
-command = shlex.join(['env', 'ENGRAM_URL=' + os.environ['ENGRAM_URL'],
-                     os.environ['ENGRAM_BIN'], 'hook', 'antigravity-session-start'])
-hook = {'engram': {'SessionStart': [{'type': 'command', 'command': command, 'timeout': 3}]}}
+commands = {'SessionStart': 'antigravity-session-start',
+            'PreInvocation': 'antigravity-pre-invocation'}
+hook = {'engram': {
+    event: [{'type': 'command', 'timeout': 3,
+             'command': shlex.join(['env', 'ENGRAM_URL=' + os.environ['ENGRAM_URL'],
+                                    os.environ['ENGRAM_BIN'], 'hook', action])}]
+    for event, action in commands.items()}}
 (out/'mcp_config.json').write_text(json.dumps({'mcpServers': {'engram': entry}}, indent=2)+'\n')
 (out/'hooks.json').write_text(json.dumps(hook, indent=2)+'\n')
 print(out)
@@ -203,13 +209,56 @@ contain absolute paths and explicit environment settings.
 
 No `GEMINI.md` modification is necessary with this startup adapter. Multiple
 mounted workspaces, unavailable servers or unconfirmed registrations produce an
-empty hook response rather than guessing a project or session ID. This initial
-adapter does not implement periodic save nudges, passive capture, session closure
-or compaction hooks. `Stop` is not treated as conversation termination.
+empty hook response rather than guessing a project or session ID. The reminder
+also requires a confirmed existing session and readable age/history; it never
+registers a session or captures a transcript. This adapter does not implement
+passive capture, session closure, write-argument binding or compaction hooks.
+`Stop` is not treated as conversation termination.
 
 The payload contract is covered by automated adapter tests. An installed
 Antigravity runtime has not yet been exercised in this workspace; verify the
 hook and tools in a new real session after your manual installation.
+
+### Save reminder behavior
+
+These are event-driven reminders, not background timers. Registering only MCP
+does not activate hooks; complete each agent's plugin/hook registration too.
+
+| Agent | Reminder trigger | Model-visible output | Other bundled events |
+| --- | --- | --- | --- |
+| Claude Code, standard Bash path | `UserPromptSubmit` after bootstrap | `hookSpecificOutput.additionalContext` | `SessionStart` (startup/resume/clear/fork and compact), `PreToolUse`, `SubagentStop`, `SessionEnd` |
+| Codex | `UserPromptSubmit` after bootstrap, Unix Bash and Windows native handler | `hookSpecificOutput.additionalContext` | `SessionStart` (startup/resume/clear and compact), `PreToolUse`, `SubagentStop`, `SessionEnd` |
+| Antigravity | `PreInvocation`, including model calls during a tool loop | `injectSteps[].systemMessage.systemMessage` | `SessionStart` |
+
+Default policy: no reminder during the first five minutes of a known session;
+remind after at least fifteen minutes since the project's latest observation was
+created. With no observations, wait fifteen minutes from session start. After a
+reminder, wait another fifteen minutes before reminding the same session again.
+`ENGRAM_NUDGE_COOLDOWN_SECS` changes that last interval only, not the overdue-save
+threshold. Antigravity scopes cooldown state by confirmed session and project.
+Claude/Codex can use a valid old observation when session age is unavailable;
+Antigravity requires a confirmed session age. Unavailable/invalid history emits
+no reminder. A hook failure must leave normal agent work able to continue.
+
+The message asks the model to save meaningful decisions, discoveries or completed
+work with `mem_save`; it does not generate or save a note itself. It does not run
+an embedding search or inject candidate memories. Embeddings remain behind the
+ordinary search tools.
+
+Claude/Codex need a new prompt event to recheck, so a single long autonomous tool
+loop does not receive periodic nudges from these prompt hooks. Antigravity can
+recheck during that loop because it has `PreInvocation`. No event means no
+reminder, even if fifteen minutes have elapsed.
+
+The Bash Claude fallback without `jq` also returns model-visible reminders.
+Claude's optional Windows PowerShell/Git Bash safe-mode fallback only bootstraps
+tools; it has no periodic reminder. The manual macOS setup uses the full Bash
+path. Windows handler contracts are tested where runnable, not claimed as a live
+Windows installation.
+
+Source contracts: [Claude Code hooks](https://code.claude.com/docs/en/hooks),
+[Codex hooks](https://developers.openai.com/codex/hooks),
+[Antigravity hooks](https://antigravity.google/docs/hooks).
 
 ## 7. Verify retrieval and model failure
 

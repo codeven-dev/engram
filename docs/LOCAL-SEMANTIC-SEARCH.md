@@ -109,12 +109,20 @@ binary and common data/model settings, and ensure the hook process uses the same
 binary and local HTTP server. The `agent` profile still exposes 22 tools in the
 reviewed version; semantic retrieval adds none.
 
+The [manual guide's hook matrix](runbooks/manual-local-memory.md#save-reminder-behavior)
+documents reminder triggers and limitations. Claude/Codex prompt reminders enter
+model context through `additionalContext`; Antigravity uses native `PreInvocation`
+injection with a save-age threshold and cooldown. Hook registration remains a
+manual step, independent of registering MCP.
+
 Antigravity now has manual configuration fragments under `plugin/antigravity/`
 and `engram hook antigravity-session-start`. It uses Antigravity's native
 `conversationId`/`workspacePaths` input and `injectSteps` output. It injects a
 short protocol, confirmed session identity and bounded project history. Ambiguous
-workspaces or unavailable/unconfirmed servers return `{}`. The first adapter
-does not implement periodic nudges, passive capture, closure or compaction hooks.
+workspaces or unavailable/unconfirmed servers return `{}`. The companion
+`engram hook antigravity-pre-invocation` checks save age and injects a brief
+reminder with a per-project/session cooldown. The adapter does not implement
+passive capture, write-argument binding, closure or compaction hooks.
 Its native payload contract is tested; real Antigravity activation remains manual
 and has not been verified here.
 
@@ -129,8 +137,11 @@ Behavioral evidence:
 - Deterministic store tests cover cross-language candidate plumbing, filters,
   bounded previews, stale work across processes, edits/deletes, fair retries,
   cancellation and future-schema protection.
-- Race checks pass for semantic store behavior, CLI diagnostics and the native
-  Antigravity startup adapter.
+- Race checks pass for semantic store behavior, CLI diagnostics, Codex prompt
+  reminders and native Antigravity startup/reminder adapters.
+- Hook regression tests decode model-visible context, overdue-save thresholds,
+  debounce, invalid history and fail-open behavior. Claude without `jq` is covered
+  independently of the upstream prompt-capture regression.
 - Real EmbeddingGemma retrieval passed Spanish-to-English, English-to-Spanish
   and a relevant fact at the end of a long note. Two unrelated queries returned
   no candidates. This small fixture is not a general quality benchmark.
